@@ -39,15 +39,10 @@ def load_data(uploaded_file):
         st.error(f"Error loading data: {e}")
         return None
 
-def get_insights(df_sample_str, plot_type, columns):
+def get_insights(api_key, df_sample_str, plot_type, columns):
     """Generates insights for a given plot using the GROQ API."""
-    try:
-        api_key = st.secrets["GROQ_API_KEY"]
-    except FileNotFoundError:
-        st.error("GROQ_API_KEY not found. Please add it to your Streamlit secrets.")
-        return "Could not generate insights due to missing API key."
-    except KeyError:
-        st.error("GROQ_API_KEY not found in secrets.toml. Please add it.")
+    if not api_key:
+        st.error("Groq API Key is missing. Please enter it in the sidebar.")
         return "Could not generate insights due to missing API key."
         
     client = Groq(api_key=api_key)
@@ -80,7 +75,7 @@ def get_insights(df_sample_str, plot_type, columns):
                     "content": prompt,
                 }
             ],
-            model="llama3-8b-8192", # Using a fast and capable model
+            model="llama-3.3-70b-versatile", # Using a fast and capable model
         )
         return chat_completion.choices[0].message.content
     except Exception as e:
@@ -89,7 +84,7 @@ def get_insights(df_sample_str, plot_type, columns):
 
 # --- Main App Logic ---
 
-# 1. File Uploader in the Sidebar
+# 1. File Uploader and API Key Input in the Sidebar
 with st.sidebar:
     st.header("1. Upload Your Data")
     uploaded_file = st.file_uploader(
@@ -97,6 +92,10 @@ with st.sidebar:
         type=["csv", "xlsx"],
         help="Upload a cleaned dataset for analysis. The app works best with data that has clear column headers and no missing values."
     )
+    st.header("2. Enter Groq API Key")
+    groq_api_key = st.text_input("Groq API Key", type="password", help="Get your API key from the Groq Console.")
+    st.markdown("[Get your Groq API Key](https://console.groq.com/keys)")
+
 
 if uploaded_file is not None:
     df = load_data(uploaded_file)
@@ -109,7 +108,7 @@ if uploaded_file is not None:
         numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
         categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
         
-        st.sidebar.header("2. Data Summary")
+        st.sidebar.header("3. Data Summary")
         st.sidebar.markdown(f"**{df.shape[0]}** rows")
         st.sidebar.markdown(f"**{df.shape[1]}** columns")
         st.sidebar.markdown(f"**{len(numeric_cols)}** numerical columns")
@@ -152,7 +151,7 @@ if uploaded_file is not None:
                 with st.spinner(f"🤖 Analyzing `{selected_column}`..."):
                     plot_type = "Histogram and Box Plot" if selected_column in numeric_cols else "Bar Chart"
                     df_sample_str = df[[selected_column]].head().to_string()
-                    insights = get_insights(df_sample_str, plot_type, [selected_column])
+                    insights = get_insights(groq_api_key, df_sample_str, plot_type, [selected_column])
                     
                     st.markdown("#### 🧠 AI-Powered Insights")
                     st.markdown(insights)
@@ -201,7 +200,7 @@ if uploaded_file is not None:
                     if fig:
                         with st.spinner(f"🤖 Analyzing relationship between `{x_axis}` and `{y_axis}`..."):
                             df_sample_str = df[[x_axis, y_axis]].head().to_string()
-                            insights = get_insights(df_sample_str, plot_type, [x_axis, y_axis])
+                            insights = get_insights(groq_api_key, df_sample_str, plot_type, [x_axis, y_axis])
                             st.markdown("#### 🧠 AI-Powered Insights")
                             st.markdown(insights)
         else:
